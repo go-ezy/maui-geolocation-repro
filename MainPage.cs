@@ -5,17 +5,19 @@ namespace MauiGeolocationRepro;
 /// receiver on. MAUI registers LocationManager's "fused" provider with the legacy RequestLocationUpdates overload,
 /// which carries no quality, and Android records it as BALANCED (Wi-Fi/cell only).
 ///
-/// Run outdoors with nothing else using location (close Google Maps). Tap Start and wait 2 minutes.
+/// Run outdoors with nothing else using location (close Google Maps). Pick an accuracy, tap Start, wait 2 minutes.
 /// Expected: "GNSS engine" on, satellites used > 0, accuracy within about 10 m, about 1 update per second.
-/// Actual:   "GNSS engine" never starts, 0 satellites, accuracy about 100 m, a handful of updates.
+/// Actual, at every accuracy: "GNSS engine" never starts. With Best there are 0 events (MAUI's 50 m filter drops
+/// every ±100 m Wi-Fi/cell fix); with High or lower there are a few events at about ±100 m.
 /// While it runs: adb shell dumpsys location | grep -A3 "fused provider:"  shows  Request[@+1s0ms BALANCED]
 /// </summary>
 public sealed class MainPage : ContentPage
 {
 	readonly Label _status = new() { FontSize = 18 };
-	readonly Button _button = new() { Text = "Start listening (Best, 1 s)" };
-	readonly DateTime _appStart = DateTime.Now;
+	readonly Picker _accuracy = new() { Title = "Accuracy", ItemsSource = Enum.GetNames<GeolocationAccuracy>() };
+	readonly Button _button = new();
 	DateTime _startedAt;
+	GeolocationAccuracy _listeningAccuracy;
 	int _updates;
 	double? _lastAccuracy, _bestAccuracy;
 	string _gnss = "not reported";
@@ -33,20 +35,24 @@ public sealed class MainPage : ContentPage
 		};
 		Geolocation.Default.ListeningFailed += (_, e) => Log($"ListeningFailed: {e.Error}");
 
-		Content = new VerticalStackLayout { Padding = 24, Spacing = 16, Children = { _button, _status } };
+		_accuracy.SelectedItem = nameof(GeolocationAccuracy.Best);
+		_accuracy.SelectedIndexChanged += (_, _) => Refresh();
+
+		Content = new VerticalStackLayout { Padding = 24, Spacing = 16, Children = { _accuracy, _button, _status } };
+		Refresh();
 		Dispatcher.StartTimer(TimeSpan.FromSeconds(1), () => { Refresh(); return true; });
-#if ANDROID
-		GnssMonitor.Start(s => _gnss = s);
-#endif
 	}
+
+	GeolocationAccuracy SelectedAccuracy =>
+		Enum.TryParse<GeolocationAccuracy>(_accuracy.SelectedItem as string, out var a) ? a : GeolocationAccuracy.Best;
 
 	async void OnButtonClicked(object? sender, EventArgs e)
 	{
 		if (Geolocation.Default.IsListeningForeground)
 		{
 			Geolocation.Default.StopListeningForeground();
-			_button.Text = "Start listening (Best, 1 s)";
 			Log("Stopped");
+			Refresh();
 			return;
 		}
 
@@ -56,21 +62,29 @@ public sealed class MainPage : ContentPage
 			return;
 		}
 
+#if ANDROID
+		// Needs the location permission, so it starts here rather than at launch.
+		GnssMonitor.Start(s => _gnss = s);
+#endif
+
 		_updates = 0;
 		_lastAccuracy = _bestAccuracy = null;
 		_startedAt = DateTime.Now;
+		_listeningAccuracy = SelectedAccuracy;
 		var started = await Geolocation.Default.StartListeningForegroundAsync(
-			new GeolocationListeningRequest(GeolocationAccuracy.Best, TimeSpan.FromSeconds(1)));
-		_button.Text = "Stop";
-		Log($"StartListeningForegroundAsync(Best, 1 s) returned {started}");
+			new GeolocationListeningRequest(_listeningAccuracy, TimeSpan.FromSeconds(1)));
+		Log($"StartListeningForegroundAsync({_listeningAccuracy}, 1 s) returned {started}");
+		Refresh();
 	}
 
 	void Refresh()
 	{
 		var listening = Geolocation.Default.IsListeningForeground;
+		_accuracy.IsEnabled = !listening;
+		_button.Text = listening ? "Stop" : $"Start listening ({SelectedAccuracy}, 1 s)";
 		_status.Text =
 			$"Android {DeviceInfo.Current.VersionString}, {DeviceInfo.Current.Manufacturer} {DeviceInfo.Current.Model}\n" +
-			$"Listening: {listening}" + (listening ? $" for {(DateTime.Now - _startedAt).TotalSeconds:0} s" : "") + "\n" +
+			$"Listening: {listening}" + (listening ? $" ({_listeningAccuracy}) for {(DateTime.Now - _startedAt).TotalSeconds:0} s" : "") + "\n" +
 			$"LocationChanged events: {_updates}\n" +
 			$"Last accuracy: {Format(_lastAccuracy)}\n" +
 			$"Best accuracy: {Format(_bestAccuracy)}\n" +
@@ -91,8 +105,13 @@ public sealed class MainPage : ContentPage
 /// <summary>Diagnostics only (not part of the bug): reports whether the GNSS receiver is running and satellites used.</summary>
 static class GnssMonitor
 {
+	static bool _started;
+
 	public static void Start(Action<string> report)
 	{
+		if (_started)
+			return;
+		_started = true;
 		var lm = (Android.Locations.LocationManager)Android.App.Application.Context.GetSystemService(Android.Content.Context.LocationService)!;
 		lm.RegisterGnssStatusCallback(new Callback(report), new Android.OS.Handler(Android.OS.Looper.MainLooper!));
 	}

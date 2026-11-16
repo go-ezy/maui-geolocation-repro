@@ -15,7 +15,8 @@ running (from `GnssStatus.Callback`, used for diagnostics only).
 1. Use an Android 14+ device with Google Play Services, outdoors with a clear sky.
 2. Close Google Maps and any other app using location, so nothing else turns GNSS on.
 3. Build and run: `dotnet build -t:Run -f net10.0-android`
-4. Tap **Start listening (Best, 1 s)**, then wait 2 minutes.
+4. Leave the accuracy picker on **Best** (or pick any other `GeolocationAccuracy`), tap **Start listening**,
+   then wait 2 minutes. Stop, pick another accuracy and repeat to see that none of them turn GNSS on.
 5. Optional, while it runs:
    `adb shell dumpsys location | grep -B2 -A4 "com.example.mauigeolocationrepro"`
 6. To compare, change `<MauiVersion>` in the csproj to `10.0.20` and repeat.
@@ -32,8 +33,9 @@ The GNSS engine turns on, satellites are used, accuracy is within about 10 m, wi
 | 10.0.20 | 2 (±20 m, then ±1.7 m) | ON, 24 of 24 satellites used | `gps` `HIGH_ACCURACY` plus `network` `BALANCED` (both `minUpdateDistance=50`) |
 
 On 10.0.120 the BALANCED fused provider only produces Wi-Fi/cell fixes (about ±100 m). MAUI's own `Best`
-threshold (50 m) then discards all of them, so the app receives nothing. With `High` (100 m threshold) the app
-gets a few ±100 m fixes instead. Opening Google Maps at the same time "fixes" it, because Maps asks the shared
+threshold (50 m) then discards all of them, so the app receives nothing. With `High` or lower (100 m threshold
+or more) the app gets a few ±100 m fixes instead. So the thing to watch is the **GNSS engine** line: it never
+starts, at any accuracy. Opening Google Maps at the same time "fixes" it, because Maps asks the shared
 fused provider for HIGH_ACCURACY. (The 10.0.20 row's low event count is the separate distance issue #22683,
 fixed since.)
 
