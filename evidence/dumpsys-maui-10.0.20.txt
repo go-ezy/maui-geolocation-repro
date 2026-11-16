@@ -1,0 +1,13 @@
+# adb shell dumpsys location (excerpt), MAUI 10.0.20, ~60 s after StartListeningForegroundAsync(Best, 1 s)
+
+    network provider:
+      service: ProviderRequest[@+1s0ms, WorkSource{10491 com.example.mauigeolocationrepro}]
+        10491/com.example.mauigeolocationrepro/41BA03E5 Request[@+1s0ms BALANCED, minUpdateDistance=50.0, WorkSource{10491 com.example.mauigeolocationrepro}]
+
+    fused provider:
+      service: ProviderRequest[OFF]
+
+    gps provider:
+      service: ProviderRequest[@+1s0ms, HIGH_ACCURACY, WorkSource{10491 com.example.mauigeolocationrepro}]
+        10491/com.example.mauigeolocationrepro/41BA03E5 Request[@+1s0ms HIGH_ACCURACY, minUpdateDistance=50.0, WorkSource{10491 com.example.mauigeolocationrepro}]
+      mStarted=true   (changed +1m0s85ms ago)

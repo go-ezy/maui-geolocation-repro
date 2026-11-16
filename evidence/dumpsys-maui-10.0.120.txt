@@ -1,0 +1,12 @@
+# adb shell dumpsys location (excerpt), MAUI 10.0.120, ~60 s after StartListeningForegroundAsync(Best, 1 s)
+
+    network provider:
+      service: ProviderRequest[@+6h0m0s0ms, LOW_POWER, WorkSource{10235 com.google.android.as}]
+
+    fused provider:
+      service: ProviderRequest[@+1s0ms, WorkSource{10491 com.example.mauigeolocationrepro}]
+        10491/com.example.mauigeolocationrepro/B2261153 Request[@+1s0ms BALANCED, WorkSource{10491 com.example.mauigeolocationrepro}]
+
+    gps provider:
+      service: ProviderRequest[OFF]
+      mStarted=false   (changed +19m48s59ms ago)
